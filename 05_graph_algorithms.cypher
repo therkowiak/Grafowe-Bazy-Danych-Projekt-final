@@ -19,7 +19,7 @@ RETURN t1.name, prestige ORDER BY prestige DESC;
 MATCH (p1:Player)-[:PLACED]->(c1)-[:CONTAINS]->(b1)-[:ON_MATCH]->(m)
 MATCH (p2:Player)-[:PLACED]->(c2)-[:CONTAINS]->(b2)-[:ON_MATCH]->(m)
 MATCH (p3:Player)-[:PLACED]->(c3)-[:CONTAINS]->(b3)-[:ON_MATCH]->(m)
-WHERE p1 <> p2 AND p2 <> p3 AND p1 <> p3
+WHERE id(p1) < id(p2) AND id(p2) < id(p3)
 RETURN m.id, count(*) AS suspect_intensity;
 
 // 5. Shortest Path: Znajdź najkrótszą ścieżkę powiązań między dwoma graczami z różnych miast

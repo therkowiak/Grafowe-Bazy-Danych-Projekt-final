@@ -25,6 +25,6 @@ RETURN p.username, c.id, c.stake, global_avg;
 
 // 5. Agregacja: Procentowy udział wygranych kuponów w podziale na poziom gracza (VIP vs Standard)
 MATCH (p:Player)-[:PLACED]->(c:Coupon)
-WITH p.level AS lv, count(c) AS total
-MATCH (p2:Player {level: lv})-[:PLACED]->(win:Coupon {status: 'WON'})
-RETURN lv, total, count(win) AS wins, (toFloat(count(win))/total)*100 AS win_rate_percent;
+WITH p.level AS lv, count(c) AS total,
+     sum(CASE WHEN c.status = 'WON' THEN 1 ELSE 0 END) AS wins
+RETURN lv, total, wins, (toFloat(wins)/total)*100 AS win_rate_percent;
