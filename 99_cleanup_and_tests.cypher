@@ -25,5 +25,19 @@ RETURN b AS orphan_bet;
 MATCH (p:Player) WHERE NOT (p)-[:PLACED]->()
 RETURN p.username AS inactive_player;
 
-// 7. Podgląd grafu (tylko dla małych zbiorów)
+// 7. Sprawdzenie: czy każda drużyna należy do ligi krajowej?
+MATCH (t:Team)
+WHERE NOT (t)-[:BELONGS_TO]->(:League {tier: 1})
+RETURN t.name AS team_without_league;
+
+// 8. Sprawdzenie: czy każdy mecz ma wynik (result)?
+MATCH (m:Match) WHERE m.result IS NULL
+RETURN m.id AS match_without_result;
+
+// 9. Sprawdzenie: spójność relacji RIVAL (czy oba zespoły są z tego samego kraju?)
+MATCH (t1:Team)-[r:RIVAL]->(t2:Team)
+WHERE t1.country <> t2.country
+RETURN t1.name, t2.name, r.type AS invalid_rival;
+
+// 10. Podgląd grafu (tylko dla małych zbiorów)
 MATCH (n) RETURN n LIMIT 50;

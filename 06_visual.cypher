@@ -27,3 +27,12 @@ ORDER BY Ilosc DESC;
 MATCH ()-[r]->()
 RETURN type(r) AS Typ_Relacji, count(*) AS Ilosc
 ORDER BY Ilosc DESC;
+
+// 6. Struktura lig: drużyny → ligi krajowe + Champions League
+MATCH (t:Team)-[b:BELONGS_TO]->(l:League)
+RETURN t, b, l;
+
+// 7. Mapa rywalizacji: drużyny połączone relacją RIVAL
+MATCH (t1:Team)-[r:RIVAL]->(t2:Team)
+OPTIONAL MATCH (t1)-[:PLAYS_HOME|PLAYS_AWAY]-(m:Match)-[:PLAYS_HOME|PLAYS_AWAY]-(t2)
+RETURN t1, r, t2, m;
