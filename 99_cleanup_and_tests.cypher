@@ -39,5 +39,20 @@ MATCH (t1:Team)-[r:RIVAL]->(t2:Team)
 WHERE t1.country <> t2.country
 RETURN t1.name, t2.name, r.type AS invalid_rival;
 
-// 10. Podgląd grafu (tylko dla małych zbiorów)
+// 10. Sprawdzenie: czy format wyniku jest poprawny (X:Y)?
+MATCH (m:Match)
+WHERE NOT m.result =~ '\\d+:\\d+'
+RETURN m.id AS bad_result_format, m.result;
+
+// 11. Sprawdzenie: czy każda drużyna należy do Champions League?
+MATCH (t:Team)
+WHERE NOT (t)-[:BELONGS_TO]->(:League {name: 'Champions League'})
+RETURN t.name AS team_not_in_cl;
+
+// 12. Podsumowanie grafu: łączna liczba węzłów, relacji, constraintów
+MATCH (n) WITH count(n) AS total_nodes
+MATCH ()-[r]->() WITH total_nodes, count(r) AS total_rels
+RETURN total_nodes, total_rels;
+
+// 13. Podgląd grafu (tylko dla małych zbiorów)
 MATCH (n) RETURN n LIMIT 50;
