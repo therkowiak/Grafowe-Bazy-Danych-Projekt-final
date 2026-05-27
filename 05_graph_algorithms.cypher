@@ -85,3 +85,51 @@ ORDER BY dist DESC LIMIT 1
 RETURN p1.username AS player_a,
        p2.username AS player_b,
        dist AS graph_diameter;
+
+// 8. League Hub Score: Która liga jest największym hubem zakładowym?
+//    Degree centrality dla węzłów League — liczymy drużyny (BELONGS_TO) + pośrednio mecze i zakłady
+MATCH (l:League)
+WITH l,
+     COUNT { (l)<-[:BELONGS_TO]-() } AS team_count
+MATCH (l)<-[:BELONGS_TO]-(t:Team)-[:PLAYS_HOME|PLAYS_AWAY]-(m:Match)
+WITH l, team_count,
+     count(DISTINCT m) AS match_count,
+     COUNT { (l)<-[:BELONGS_TO]-(:Team)-[:PLAYS_HOME|PLAYS_AWAY]-(:Match)<-[:ON_MATCH]-(:Bet) } AS bet_reach
+RETURN l.name, l.tier,
+       team_count, match_count, bet_reach,
+       round(toFloat(bet_reach) / team_count, 2) AS bets_per_team
+ORDER BY bet_reach DESC;
+
+// 9. Rival Cluster Detection: Podgrafy rywalizacji — połączone komponenty w sieci RIVAL
+//    BFS-like: dla każdej drużyny zbieramy rywali i rywali rywali (2 hopy w sieci RIVAL)
+MATCH (t1:Team)-[:RIVAL*1..2]-(t2:Team)
+WHERE id(t1) < id(t2)
+WITH t1, collect(DISTINCT t2.name) AS cluster_members, count(DISTINCT t2) AS cluster_size
+RETURN t1.name AS seed_team,
+       cluster_members,
+       cluster_size
+ORDER BY cluster_size DESC;
+
+// 10. Weighted PageRank: Ranking drużyn z wagami wyników meczy
+//     Wygrana daje prestiż proporcjonalny do rangi przeciwnika; remis połowę; przegrana zero
+MATCH (t1:Team)-[:PLAYS_HOME]->(m:Match)<-[:PLAYS_AWAY]-(t2:Team)
+WITH t1, t2, m,
+     toInteger(split(m.result, ':')[0]) AS home_goals,
+     toInteger(split(m.result, ':')[1]) AS away_goals
+WITH t1, t2,
+     CASE
+       WHEN home_goals > away_goals THEN 1.0 / t2.rank
+       WHEN home_goals = away_goals THEN 0.5 / t2.rank
+       ELSE 0
+     END AS home_prestige,
+     CASE
+       WHEN away_goals > home_goals THEN 1.0 / t1.rank
+       WHEN home_goals = away_goals THEN 0.5 / t1.rank
+       ELSE 0
+     END AS away_prestige
+WITH collect({team: t1.name, prestige: home_prestige}) +
+     collect({team: t2.name, prestige: away_prestige}) AS all_scores
+UNWIND all_scores AS score
+WITH score.team AS team, sum(score.prestige) AS weighted_prestige
+RETURN team, round(weighted_prestige, 4) AS weighted_pagerank
+ORDER BY weighted_pagerank DESC;
