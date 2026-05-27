@@ -54,7 +54,7 @@ RETURN lv, total, wins, losses, pending,
        round((toFloat(wins) / total) * 100, 1) AS win_rate_percent
 ORDER BY win_rate_percent DESC;
 
-// 6. Najbardziej dochodowy mecz — łączna suma stawek i liczba unikalnych graczy
+// 6. Najbardziej dochodowy mecz — łączna suma stawek, wynik i faza turnieju
 MATCH (b:Bet)-[:ON_MATCH]->(m:Match)<-[:PLAYS_HOME|PLAYS_AWAY]-(t:Team)
 MATCH (c:Coupon)-[:CONTAINS]->(b)
 MATCH (p:Player)-[:PLACED]->(c)
@@ -63,7 +63,7 @@ WITH m,
      sum(c.stake) AS total_volume,
      count(DISTINCT p) AS unique_bettors,
      count(DISTINCT c) AS coupon_count
-RETURN m.id, m.date, teams,
+RETURN m.id, m.date, m.result, m.stage, teams,
        total_volume, unique_bettors, coupon_count
 ORDER BY total_volume DESC;
 
@@ -77,3 +77,53 @@ WITH b.type AS bet_type,
      collect(DISTINCT c.status) AS coupon_statuses
 RETURN bet_type, total_bets, avg_odds, min_odds, max_odds, coupon_statuses
 ORDER BY total_bets DESC;
+
+// 8. Statystyki per liga: wolumen zakładów i liczba graczy obstawiających daną ligę
+MATCH (l:League {tier: 1})<-[:BELONGS_TO]-(t:Team)-[:PLAYS_HOME|PLAYS_AWAY]-(m:Match)
+MATCH (b:Bet)-[:ON_MATCH]->(m)
+MATCH (c:Coupon)-[:CONTAINS]->(b)
+MATCH (p:Player)-[:PLACED]->(c)
+WITH l,
+     count(DISTINCT m) AS matches_in_league,
+     count(DISTINCT b) AS total_bets,
+     count(DISTINCT p) AS unique_bettors,
+     sum(c.stake) AS total_volume
+RETURN l.name AS league,
+       matches_in_league, total_bets, unique_bettors,
+       total_volume,
+       round(toFloat(total_volume) / total_bets, 2) AS avg_stake_per_bet
+ORDER BY total_volume DESC;
+
+// 9. Analiza wyników: trafność zakładów vs rzeczywisty wynik meczu
+//    Parsowanie result (np. '3:1') i porównanie z typem zakładu (1/X/2)
+MATCH (b:Bet)-[:ON_MATCH]->(m:Match)
+MATCH (c:Coupon)-[:CONTAINS]->(b)
+WITH b, m, c,
+     toInteger(split(m.result, ':')[0]) AS home_goals,
+     toInteger(split(m.result, ':')[1]) AS away_goals
+WITH b, m, c, home_goals, away_goals,
+     CASE
+       WHEN home_goals > away_goals THEN '1'
+       WHEN home_goals = away_goals THEN 'X'
+       ELSE '2'
+     END AS actual_outcome
+RETURN b.type AS bet_type,
+       actual_outcome,
+       CASE WHEN b.type = actual_outcome THEN 'HIT' ELSE 'MISS' END AS accuracy,
+       count(*) AS bet_count,
+       round(avg(b.odds), 2) AS avg_odds
+ORDER BY bet_type, actual_outcome;
+
+// 10. Derby premium: wolumen i intensywność zakładów na mecze rywali (RIVAL)
+MATCH (t1:Team)-[r:RIVAL]-(t2:Team)
+MATCH (t1)-[:PLAYS_HOME|PLAYS_AWAY]-(m:Match)-[:PLAYS_HOME|PLAYS_AWAY]-(t2)
+OPTIONAL MATCH (b:Bet)-[:ON_MATCH]->(m)
+OPTIONAL MATCH (c:Coupon)-[:CONTAINS]->(b)
+WITH r.type AS rivalry, r.intensity AS intensity,
+     t1.name AS team_1, t2.name AS team_2,
+     m, collect(DISTINCT c.stake) AS stakes
+RETURN rivalry, intensity, team_1, team_2,
+       m.id AS match_id, m.result,
+       size(stakes) AS coupon_count,
+       reduce(s = 0, x IN stakes | s + x) AS total_volume
+ORDER BY intensity, total_volume DESC;
